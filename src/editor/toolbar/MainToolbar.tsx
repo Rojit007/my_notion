@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import type { EditorTool } from '@/store/types';
+import { exportProject, downloadBlob } from '@/export/ProjectExporter';
 
 interface ToolbarButtonProps {
   icon: React.ReactNode;
@@ -69,7 +70,14 @@ export function MainToolbar({ projectId }: { projectId: string }) {
   const setGridEnabled = useEditorStore(s => s.setGridEnabled);
   const setSnapEnabled = useEditorStore(s => s.setSnapEnabled);
 
+  const project = useEditorStore(s => s.project);
   const isPlaying = mode === 'play';
+
+  const handleExport = async () => {
+    if (!project) return;
+    const result = await exportProject(project);
+    downloadBlob(result.blob, result.filename);
+  };
 
   return (
     <div
@@ -152,7 +160,16 @@ export function MainToolbar({ projectId }: { projectId: string }) {
       {/* Separator */}
       <div className="w-px h-6 mx-2" style={{ background: 'var(--color-border-default)' }} />
 
-      {/* Publish */}
+      {/* Export + Publish */}
+      <button
+        className="flex items-center gap-1.5 px-3 h-8 rounded-md text-sm font-medium transition-all duration-150 active:scale-95"
+        style={{ color: 'var(--color-text-s)', background: 'var(--color-bg-s2)', border: '1px solid var(--color-border-default)' }}
+        onClick={handleExport}
+        title="Download game as ZIP"
+      >
+        <Rocket size={13} />
+        Export
+      </button>
       <button
         className="flex items-center gap-1.5 px-3 h-8 rounded-md text-white text-sm font-medium transition-all duration-150 active:scale-95"
         style={{

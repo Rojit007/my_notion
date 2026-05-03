@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { useEditorStore } from '@/store';
@@ -10,8 +10,10 @@ import { SceneHierarchyPanel } from './panels/SceneHierarchy';
 import { PropertiesPanel } from './panels/PropertiesPanel';
 import { AssetLibraryPanel } from './panels/AssetLibrary';
 import { ScriptEditorPanel } from './panels/ScriptEditor';
+import { AnimationTimelinePanel } from './panels/AnimationTimeline';
 
 export function EditorShell({ projectId }: { projectId: string }) {
+  const [bottomTab, setBottomTab] = useState<'assets' | 'animations'>('assets');
   const mode = useEditorStore(s => s.mode);
   const canUndo = useEditorStore(s => s.canUndo);
   const canRedo = useEditorStore(s => s.canRedo);
@@ -113,7 +115,25 @@ export function EditorShell({ projectId }: { projectId: string }) {
                   className="panel border-t flex flex-col"
                   style={{ borderColor: 'var(--color-border-default)' }}
                 >
-                  <AssetLibraryPanel />
+                  {/* Tab bar */}
+                  <div className="flex shrink-0 border-b" style={{ borderColor: 'var(--color-border-default)', height: 32 }}>
+                    {(['assets', 'animations'] as const).map(tab => (
+                      <button
+                        key={tab}
+                        className="relative px-3 text-xs font-medium capitalize transition-colors duration-100"
+                        style={{ color: bottomTab === tab ? 'var(--color-accent)' : 'var(--color-text-t)' }}
+                        onClick={() => setBottomTab(tab)}
+                      >
+                        {tab}
+                        {bottomTab === tab && (
+                          <motion.div layoutId="bottom-tab-indicator" className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: 'var(--color-accent)' }} />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-hidden">
+                    {bottomTab === 'assets' ? <AssetLibraryPanel /> : <AnimationTimelinePanel />}
+                  </div>
                 </Panel>
               </motion.div>
             </PanelGroup>
