@@ -1,0 +1,170 @@
+/* ============================================
+   GameForge Studio — Design Tokens
+   ============================================ */
+
+:root {
+  /* ---- Backgrounds (depth layers) ---- */
+  --color-bg-base:        #090B14;
+  --color-bg-sunken:      #070910;
+  --color-bg-surface-1:   #0D1020;
+  --color-bg-surface-2:   #111627;
+  --color-bg-surface-3:   #16202E;
+  --color-bg-surface-4:   #1C2A3A;
+  --color-bg-overlay:     rgba(9, 11, 20, 0.85);
+
+  /* ---- Glass Morphism ---- */
+  --color-glass-bg:             rgba(13, 16, 32, 0.72);
+  --color-glass-border:         rgba(255, 255, 255, 0.06);
+  --color-glass-border-highlight: rgba(255, 255, 255, 0.12);
+  --color-glass-shadow:         rgba(0, 0, 0, 0.4);
+
+  /* ---- Borders ---- */
+  --color-border-subtle:  rgba(255, 255, 255, 0.04);
+  --color-border-default: rgba(255, 255, 255, 0.08);
+  --color-border-strong:  rgba(255, 255, 255, 0.14);
+  --color-border-focus:   #6366F1;
+
+  /* ---- Primary Accent: Electric Indigo ---- */
+  --color-accent:             #6366F1;
+  --color-accent-light:       #818CF8;
+  --color-accent-dim:         rgba(99, 102, 241, 0.15);
+  --color-accent-glow:        rgba(99, 102, 241, 0.35);
+  --color-accent-hover:       #4F52E8;
+  --color-accent-press:       #4348D6;
+
+  /* ---- Secondary Accent: Neon Violet ---- */
+  --color-accent-s:           #A855F7;
+  --color-accent-s-dim:       rgba(168, 85, 247, 0.15);
+  --color-accent-s-glow:      rgba(168, 85, 247, 0.30);
+
+  /* ---- Tertiary: Cyan (play mode) ---- */
+  --color-accent-c:           #22D3EE;
+  --color-accent-c-dim:       rgba(34, 211, 238, 0.12);
+  --color-accent-c-glow:      rgba(34, 211, 238, 0.30);
+
+  /* ---- Semantic ---- */
+  --color-success:      #10B981;
+  --color-success-dim:  rgba(16, 185, 129, 0.15);
+  --color-success-glow: rgba(16, 185, 129, 0.25);
+  --color-warning:      #F59E0B;
+  --color-warning-dim:  rgba(245, 158, 11, 0.15);
+  --color-danger:       #EF4444;
+  --color-danger-dim:   rgba(239, 68, 68, 0.15);
+  --color-danger-glow:  rgba(239, 68, 68, 0.25);
+
+  /* ---- Text ---- */
+  --color-text-primary:   #E8EAFF;
+  --color-text-secondary: #8B92B3;
+  --color-text-tertiary:  #4D5580;
+  --color-text-accent:    #818CF8;
+  --color-text-inverse:   #090B14;
+
+  /* ---- Object type colors ---- */
+  --color-obj-sprite:  #6366F1;
+  --color-obj-audio:   #10B981;
+  --color-obj-camera:  #22D3EE;
+  --color-obj-physics: #F59E0B;
+  --color-obj-script:  #A855F7;
+  --color-obj-ui:      #EC4899;
+  --color-obj-light:   #FCD34D;
+  --color-obj-empty:   #4D5580;
+
+  /* ---- Canvas ---- */
+  --color-canvas-bg:              #0A0D1A;
+  --color-canvas-grid-minor:      rgba(255, 255, 255, 0.025);
+  --color-canvas-grid-major:      rgba(255, 255, 255, 0.055);
+  --color-canvas-selection:       rgba(99, 102, 241, 0.20);
+  --color-canvas-selection-border:#6366F1;
+  --color-canvas-handle:          #FFFFFF;
+  --color-canvas-gizmo:           #22D3EE;
+
+  /* ---- Genre badge colors ---- */
+  --badge-platformer: #6366F1;
+  --badge-rpg:        #A855F7;
+  --badge-shooter:    #EF4444;
+  --badge-puzzle:     #10B981;
+  --badge-racing:     #F59E0B;
+  --badge-adventure:  #22D3EE;
+  --badge-strategy:   #EC4899;
+  --badge-arcade:     #FCD34D;
+
+  /* ---- Typography ---- */
+  --font-sans:    'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono:    'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --font-display: 'Space Grotesk', 'Inter', sans-serif;
+
+  --text-2xs: 0.625rem;
+  --text-xs:  0.6875rem;
+  --text-sm:  0.75rem;
+  --text-base:0.8125rem;
+  --text-md:  0.875rem;
+  --text-lg:  1rem;
+  --text-xl:  1.125rem;
+  --text-2xl: 1.375rem;
+  --text-3xl: 1.75rem;
+  --text-4xl: 2.25rem;
+
+  --tracking-tight:   -0.025em;
+  --tracking-wide:     0.02em;
+  --tracking-wider:    0.06em;
+  --tracking-widest:   0.1em;
+
+  /* ---- Layout ---- */
+  --panel-top-height:       48px;
+  --panel-left-width:       260px;
+  --panel-right-width:      280px;
+  --panel-bottom-height:    220px;
+  --panel-left-min:         200px;
+  --panel-left-max:         400px;
+  --panel-right-min:        220px;
+  --panel-right-max:        420px;
+  --panel-bottom-min:       160px;
+  --panel-bottom-max:       320px;
+  --canvas-ruler-size:      20px;
+  --panel-padding-x:        12px;
+  --panel-padding-y:        8px;
+
+  --hierarchy-row-height:   28px;
+  --hierarchy-indent:       16px;
+  --property-row-height:    28px;
+  --property-label-width:   100px;
+  --asset-thumb-size:       80px;
+  --toolbar-btn-size:       36px;
+  --topbar-icon-size:       28px;
+  --asset-tab-height:       36px;
+
+  /* ---- Easing ---- */
+  --ease-out-quart:    cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-expo:     cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+  --ease-spring:       cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-spring-soft:  cubic-bezier(0.22, 1.1, 0.36, 1);
+
+  /* ---- Z-index layers ---- */
+  --z-canvas:        0;
+  --z-canvas-ui:     10;
+  --z-panels:        100;
+  --z-topbar:        200;
+  --z-dropdown:      300;
+  --z-context-menu:  400;
+  --z-modal-overlay: 500;
+  --z-modal:         510;
+  --z-toast:         600;
+  --z-play-overlay:  700;
+}
+
+@media (max-width: 1280px) {
+  :root {
+    --panel-left-width:    220px;
+    --panel-right-width:   240px;
+    --panel-bottom-height: 180px;
+  }
+}
+
+@media (min-width: 1600px) {
+  :root {
+    --panel-left-width:    280px;
+    --panel-right-width:   320px;
+    --panel-bottom-height: 240px;
+  }
+}

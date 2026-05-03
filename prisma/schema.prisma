@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  name      String?
+  avatar    String?
+  projects  Project[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Project {
+  id           String      @id @default(cuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  thumbnailUrl String?
+  slug         String      @unique @default(cuid())
+  status       String      @default("draft")
+  settings     Json        @default("{}")
+  publishedAt  DateTime?
+  publishedUrl String?
+  buildVersion Int         @default(0)
+  scenes       Scene[]
+  assets       Asset[]
+  scripts      Script[]
+  animations   Animation[]
+  buildJobs    BuildJob[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model Scene {
+  id          String       @id @default(cuid())
+  projectId   String
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  index       Int          @default(0)
+  data        Json         @default("{}")
+  gameObjects GameObject[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model GameObject {
+  id        String   @id @default(cuid())
+  sceneId   String
+  scene     Scene    @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  parentId  String?
+  name      String
+  type      String   @default("sprite")
+  data      Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Asset {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name         String
+  type         String
+  mimeType     String
+  fileSize     Int
+  storageKey   String
+  url          String
+  thumbnailUrl String?
+  meta         Json     @default("{}")
+  tags         String[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Animation {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assetId   String
+  name      String
+  data      Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Script {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  data      Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BuildJob {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status    String   @default("queued")
+  progress  Int      @default(0)
+  outputUrl String?
+  error     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
