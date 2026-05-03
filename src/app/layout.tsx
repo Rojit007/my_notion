@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { TRPCProvider } from '@/lib/trpc/provider';
+import { ToastContainer } from '@/components/ui/Toast';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="h-full antialiased" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-bg-base)', color: 'var(--color-text-p)' }}>
         <TRPCProvider>
           {children}
+          <ToastContainer />
         </TRPCProvider>
       </body>
     </html>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useEditorStore } from '@/store';
 import { GameBridge } from './GameBridge';
 import { EditorScene } from './EditorScene';
@@ -8,33 +9,33 @@ import { PlayScene } from './PlayScene';
 import { MoveObjectCommand } from '@/commands/MoveObjectCommand';
 import { AddObjectCommand } from '@/commands/AddObjectCommand';
 import { createGameObject } from '@/store';
+import type { GameRuntime } from '@/runtime/GameRuntime';
 
 export function PhaserCanvas() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const gameRef = useRef<import('phaser').Game | null>(null);
-  const bridgeRef = useRef<GameBridge | null>(null);
+  const containerRef  = useRef<HTMLDivElement>(null);
+  const playRef       = useRef<HTMLDivElement>(null);
+  const gameRef       = useRef<import('phaser').Game | null>(null);
+  const bridgeRef     = useRef<GameBridge | null>(null);
+  const runtimeRef    = useRef<GameRuntime | null>(null);
 
-  const mode = useEditorStore(s => s.mode);
-  const zoom = useEditorStore(s => s.zoom);
-  const gridEnabled = useEditorStore(s => s.gridEnabled);
-  const gridSize = useEditorStore(s => s.gridSize);
-  const commandManager = useEditorStore(s => s.commandManager);
-  const store = useEditorStore();
+  const mode            = useEditorStore(s => s.mode);
+  const zoom            = useEditorStore(s => s.zoom);
+  const gridEnabled     = useEditorStore(s => s.gridEnabled);
+  const gridSize        = useEditorStore(s => s.gridSize);
+  const commandManager  = useEditorStore(s => s.commandManager);
+  const store           = useEditorStore();
 
-  // ---- Mount Phaser once ----
+  // ---- Mount editor Phaser once ----
   useEffect(() => {
     if (!containerRef.current || gameRef.current) return;
 
     const bridge = new GameBridge();
     bridgeRef.current = bridge;
 
-    // Listen for Phaser → React events
     const unsub = bridge.on(event => {
       switch (event.type) {
         case 'objectMoved':
-          commandManager.execute(
-            new MoveObjectCommand(store, event.id, event.x, event.y)
-          );
+          commandManager.execute(new MoveObjectCommand(store, event.id, event.x, event.y));
           break;
         case 'objectSelected':
           store.setSelectedObjects(event.ids);
@@ -54,12 +55,10 @@ export function PhaserCanvas() {
       }
     });
 
-    // Dynamic Phaser import (avoids SSR window access)
     import('phaser').then(Phaser => {
       if (!containerRef.current || gameRef.current) return;
-
       const editorScene = new EditorScene(bridge);
-      const playScene = new PlayScene(bridge);
+      const playScene   = new PlayScene(bridge);
 
       const game = new Phaser.Game({
         type: Phaser.AUTO,
@@ -72,10 +71,7 @@ export function PhaserCanvas() {
           matter: { debug: false, gravity: { x: 0, y: 0 } },
         },
         scene: [editorScene, playScene],
-        scale: {
-          mode: Phaser.Scale.RESIZE,
-          autoCenter: Phaser.Scale.CENTER_BOTH,
-        },
+        scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH },
         input: { mouse: { preventDefaultWheel: false } },
       });
 
@@ -90,61 +86,84 @@ export function PhaserCanvas() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ---- Sync mode changes ----
+  // ---- Play/Stop: mount or destroy GameRuntime ----
   useEffect(() => {
-    bridgeRef.current?.setMode(mode);
-  }, [mode]);
+    if (mode === 'play') {
+      const project = store.project;
+      if (!project || !playRef.current) return;
+      const snapshot = structuredClone(project);
 
-  // ---- Sync zoom ----
-  useEffect(() => {
-    bridgeRef.current?.setZoom(zoom);
-  }, [zoom]);
+      import('@/runtime/GameRuntime').then(({ GameRuntime }) => {
+        if (!playRef.current || runtimeRef.current) return;
+        const rt = new GameRuntime();
+        runtimeRef.current = rt;
+        rt.start(snapshot, playRef.current);
+      });
+    } else {
+      runtimeRef.current?.destroy();
+      runtimeRef.current = null;
+    }
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ---- Sync grid ----
-  useEffect(() => {
-    bridgeRef.current?.setGrid(gridEnabled, gridSize);
-  }, [gridEnabled, gridSize]);
+  // ---- Sync zoom / grid to editor scene ----
+  useEffect(() => { bridgeRef.current?.setZoom(zoom); }, [zoom]);
+  useEffect(() => { bridgeRef.current?.setGrid(gridEnabled, gridSize); }, [gridEnabled, gridSize]);
 
-  // ---- Subscribe to object changes and sync to Phaser ----
+  // ---- Sync objects slice to Phaser editor scene ----
   useEffect(() => {
-    const unsubObjects = useEditorStore.subscribe(
+    return useEditorStore.subscribe(
       s => s.project?.scenes[s.activeSceneId]?.objects,
-      objects => bridgeRef.current?.syncObjects(objects),
-      { equalityFn: (a, b) => a === b }
+      objects => { if (store.mode === 'editor') bridgeRef.current?.syncObjects(objects); },
+      { equalityFn: (a, b) => a === b },
     );
-    return unsubObjects;
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ---- Subscribe to selection changes ----
+  // ---- Sync selection ----
   useEffect(() => {
-    const unsubSel = useEditorStore.subscribe(
+    return useEditorStore.subscribe(
       s => s.selectedObjectIds,
       ids => bridgeRef.current?.setSelection(ids),
     );
-    return unsubSel;
   }, []);
 
-  // ---- Drag-and-drop from Asset Library ----
+  // ---- Drop assets from library ----
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const assetId = e.dataTransfer.getData('application/gameforge-asset');
     if (!assetId || !bridgeRef.current) return;
-
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    bridgeRef.current.emit({ type: 'objectDropped', assetId, x, y });
+    bridgeRef.current.emit({ type: 'objectDropped', assetId, x: e.clientX - rect.left, y: e.clientY - rect.top });
   }, []);
+
+  const bgColor = store.project?.settings.backgroundColor ?? '#0A0D1A';
 
   return (
     <div
-      ref={containerRef}
       className="relative w-full h-full canvas-grid"
       onDrop={handleDrop}
       onDragOver={e => e.preventDefault()}
       onContextMenu={e => e.preventDefault()}
-    />
+    >
+      {/* Editor Phaser canvas lives here */}
+      <div ref={containerRef} className="absolute inset-0" />
+
+      {/* Play mode runtime overlay */}
+      <AnimatePresence>
+        {mode === 'play' && (
+          <motion.div
+            key="play-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0"
+            style={{ background: bgColor, zIndex: 20 }}
+          >
+            <div ref={playRef} className="w-full h-full" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

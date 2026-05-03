@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useEditorStore, createDefaultScene } from '@/store';
 import { EditorShell } from '@/editor/EditorShell';
 import { trpc } from '@/lib/trpc/client';
 import type { ProjectState } from '@/store/types';
 import { motion } from 'framer-motion';
 import { Gamepad2 } from 'lucide-react';
+import { toast } from '@/components/ui/Toast';
 
 function EditorLoader({ projectId }: { projectId: string }) {
   const loadProject = useEditorStore(s => s.loadProject);
@@ -120,6 +121,74 @@ function EditorLoader({ projectId }: { projectId: string }) {
 
     loadProject(projectState);
   }, [data, loadProject]);
+
+  // ---- Auto-save (debounced, 3s after last change) ----
+  const saveScene = trpc.scene.save.useMutation();
+  const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setIsSaving = useEditorStore(s => s.setIsSaving);
+  const setIsDirty = useEditorStore(s => s.setIsDirty);
+
+  const doSave = useCallback(async () => {
+    const state = useEditorStore.getState();
+    const { project, activeSceneId } = state;
+    if (!project || !activeSceneId) return;
+
+    const scene = project.scenes[activeSceneId];
+    if (!scene) return;
+
+    setIsSaving(true);
+    try {
+      await saveScene.mutateAsync({
+        id: activeSceneId,
+        data: {
+          layers: scene.layers as Record<string, unknown>,
+          layerIds: scene.layerIds,
+          gravity: scene.gravity,
+        },
+        gameObjects: Object.values(scene.objects).map(obj => ({
+          id: obj.id,
+          name: obj.name,
+          type: obj.type,
+          data: {
+            transform: obj.transform,
+            physics: obj.physics,
+            spriteData: obj.spriteData,
+            textData: obj.textData,
+            shapeData: obj.shapeData,
+            audioData: obj.audioData,
+            scriptIds: obj.scriptIds,
+            visible: obj.visible,
+            locked: obj.locked,
+            tags: obj.tags,
+            layerId: obj.layerId,
+          },
+        })),
+      });
+      setIsDirty(false);
+      toast.success('Saved');
+    } catch {
+      toast.error('Save failed', 'Changes could not be saved to the server.');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [saveScene, setIsSaving, setIsDirty]);
+
+  useEffect(() => {
+    if (!project) return;
+    // Subscribe to isDirty flag — trigger debounced save when it becomes true
+    const unsub = useEditorStore.subscribe(
+      s => s.isDirty,
+      isDirty => {
+        if (!isDirty) return;
+        if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+        saveDebounceRef.current = setTimeout(doSave, 3000);
+      },
+    );
+    return () => {
+      unsub();
+      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+    };
+  }, [project, doSave]);
 
   if (isLoading) {
     return (

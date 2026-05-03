@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MousePointer2, Move, RotateCw, Maximize2, Hand,
@@ -9,6 +10,8 @@ import {
 import { useEditorStore } from '@/store';
 import type { EditorTool } from '@/store/types';
 import { exportProject, downloadBlob } from '@/export/ProjectExporter';
+import { PublishModal } from '@/components/ui/PublishModal';
+import { toast } from '@/components/ui/Toast';
 
 interface ToolbarButtonProps {
   icon: React.ReactNode;
@@ -72,11 +75,17 @@ export function MainToolbar({ projectId }: { projectId: string }) {
 
   const project = useEditorStore(s => s.project);
   const isPlaying = mode === 'play';
+  const [showPublish, setShowPublish] = useState(false);
 
   const handleExport = async () => {
     if (!project) return;
-    const result = await exportProject(project);
-    downloadBlob(result.blob, result.filename);
+    try {
+      const result = await exportProject(project);
+      downloadBlob(result.blob, result.filename);
+      toast.success('Export ready', `${result.filename} downloaded.`);
+    } catch {
+      toast.error('Export failed', 'Could not bundle the project.');
+    }
   };
 
   return (
@@ -176,10 +185,22 @@ export function MainToolbar({ projectId }: { projectId: string }) {
           background: 'linear-gradient(135deg, #6366F1, #A855F7)',
           boxShadow: '0 0 16px rgba(99,102,241,0.3)',
         }}
+        onClick={() => setShowPublish(true)}
+        disabled={!project}
       >
         <Rocket size={14} />
         Publish
       </button>
+
+      <AnimatePresence>
+        {showPublish && project && (
+          <PublishModal
+            projectId={project.id}
+            projectName={project.name}
+            onClose={() => setShowPublish(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

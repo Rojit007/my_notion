@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, Zap, Box, ImageIcon, Code2 } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { ModifyPropertyCommand } from '@/commands/ModifyPropertyCommand';
-import type { GameObjectState, PhysicsBody } from '@/store/types';
+import type { GameObjectState, PhysicsBody, BodyShape } from '@/store/types';
 
 /* ---- Reusable property row ---- */
 function PropRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -122,6 +122,151 @@ function Toggle({ value, onChange, label }: { value: boolean; onChange: (v: bool
         />
       </button>
     </PropRow>
+  );
+}
+
+/* ---- Physics body shape visualiser ---- */
+function PhysicsBodyEditor({ physics, onChange }: { physics: PhysicsBody; onChange: (p: Partial<PhysicsBody>) => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const SIZE = 120;
+  const SHAPE_OPTIONS: BodyShape[] = ['rectangle', 'circle', 'polygon'];
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d')!;
+    ctx.clearRect(0, 0, SIZE, SIZE);
+
+    const cx = SIZE / 2;
+    const cy = SIZE / 2;
+    const pad = 16;
+    const w = physics.width ?? SIZE - pad * 2;
+    const h = physics.height ?? SIZE - pad * 2;
+    const r = physics.radius ?? (SIZE - pad * 2) / 2;
+
+    // Background
+    ctx.fillStyle = '#0D1020';
+    ctx.fillRect(0, 0, SIZE, SIZE);
+
+    // Grid dots
+    ctx.fillStyle = 'rgba(99,102,241,0.12)';
+    for (let gx = 8; gx < SIZE; gx += 12)
+      for (let gy = 8; gy < SIZE; gy += 12)
+        ctx.fillRect(gx, gy, 1.5, 1.5);
+
+    const isSensor = physics.isSensor;
+    const bodyColor = isSensor ? 'rgba(34,211,238,0.25)' : 'rgba(99,102,241,0.25)';
+    const strokeColor = isSensor ? '#22D3EE' : '#6366F1';
+
+    ctx.save();
+    ctx.fillStyle = bodyColor;
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash(isSensor ? [4, 3] : []);
+
+    if (physics.shape === 'circle') {
+      const scaledR = Math.min(r / 2, (SIZE - pad * 2) / 2);
+      ctx.beginPath();
+      ctx.arc(cx, cy, scaledR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      // crosshair
+      ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = `${strokeColor}60`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx - scaledR, cy); ctx.lineTo(cx + scaledR, cy);
+      ctx.moveTo(cx, cy - scaledR); ctx.lineTo(cx, cy + scaledR);
+      ctx.stroke();
+    } else if (physics.shape === 'rectangle') {
+      const scaledW = Math.min(w, SIZE - pad * 2);
+      const scaledH = Math.min(h, SIZE - pad * 2);
+      ctx.beginPath();
+      ctx.roundRect(cx - scaledW / 2, cy - scaledH / 2, scaledW, scaledH, 3);
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      // Triangle for polygon
+      const side = Math.min(SIZE - pad * 2, 72);
+      const th = (Math.sqrt(3) / 2) * side;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - th / 2);
+      ctx.lineTo(cx + side / 2, cy + th / 2);
+      ctx.lineTo(cx - side / 2, cy + th / 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // Body type badge
+    ctx.restore();
+    ctx.fillStyle = strokeColor;
+    ctx.font = '9px JetBrains Mono, monospace';
+    ctx.fillText(physics.bodyType, 6, SIZE - 6);
+  }, [physics]);
+
+  return (
+    <div className="px-3 pb-2 space-y-2">
+      {/* Shape picker */}
+      <div className="flex gap-1">
+        {SHAPE_OPTIONS.map(s => (
+          <button
+            key={s}
+            onClick={() => onChange({ shape: s })}
+            className="flex-1 text-2xs py-1 rounded transition-all capitalize"
+            style={{
+              background: physics.shape === s ? 'var(--color-accent)' : 'var(--color-bg-s3)',
+              color: physics.shape === s ? '#fff' : 'var(--color-text-t)',
+              border: `1px solid ${physics.shape === s ? 'var(--color-accent)' : 'var(--color-border-default)'}`,
+              boxShadow: physics.shape === s ? '0 0 8px rgba(99,102,241,0.4)' : 'none',
+            }}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+
+      {/* Visual preview */}
+      <canvas
+        ref={canvasRef}
+        width={SIZE}
+        height={SIZE}
+        className="w-full rounded-lg"
+        style={{ border: '1px solid var(--color-border-default)', imageRendering: 'pixelated', aspectRatio: '1/1' }}
+      />
+
+      {/* Shape-specific dims */}
+      {physics.shape === 'rectangle' && (
+        <div className="flex gap-1">
+          <div className="flex-1">
+            <p className="text-2xs mb-0.5" style={{ color: 'var(--color-text-t)' }}>W</p>
+            <NumInput value={physics.width ?? 64} onChange={v => onChange({ width: v })} />
+          </div>
+          <div className="flex-1">
+            <p className="text-2xs mb-0.5" style={{ color: 'var(--color-text-t)' }}>H</p>
+            <NumInput value={physics.height ?? 64} onChange={v => onChange({ height: v })} />
+          </div>
+        </div>
+      )}
+      {physics.shape === 'circle' && (
+        <div>
+          <p className="text-2xs mb-0.5" style={{ color: 'var(--color-text-t)' }}>Radius</p>
+          <NumInput value={physics.radius ?? 32} onChange={v => onChange({ radius: v })} />
+        </div>
+      )}
+
+      {/* Offset */}
+      <div className="flex gap-1">
+        <div className="flex-1">
+          <p className="text-2xs mb-0.5" style={{ color: 'var(--color-text-t)' }}>Offset X</p>
+          <NumInput value={physics.offsetX} onChange={v => onChange({ offsetX: v })} />
+        </div>
+        <div className="flex-1">
+          <p className="text-2xs mb-0.5" style={{ color: 'var(--color-text-t)' }}>Offset Y</p>
+          <NumInput value={physics.offsetY} onChange={v => onChange({ offsetY: v })} />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -245,10 +390,16 @@ export function PropertiesPanel() {
                   <option value="sensor">Sensor</option>
                 </select>
               </PropRow>
+
+              {/* Visual body shape editor */}
+              <PhysicsBodyEditor physics={obj.physics} onChange={updatePhysics} />
+
               <PropRow label="Mass"><NumInput value={obj.physics.mass} onChange={v => updatePhysics({ mass: v })} step={0.1} /></PropRow>
               <PropRow label="Friction"><NumInput value={obj.physics.friction} onChange={v => updatePhysics({ friction: v })} step={0.01} /></PropRow>
+              <PropRow label="Air fric."><NumInput value={obj.physics.frictionAir} onChange={v => updatePhysics({ frictionAir: v })} step={0.005} /></PropRow>
               <PropRow label="Bounce"><NumInput value={obj.physics.restitution} onChange={v => updatePhysics({ restitution: Math.min(1, Math.max(0, v)) })} step={0.05} /></PropRow>
-              <PropRow label="Gravity scale"><NumInput value={obj.physics.gravityScale} onChange={v => updatePhysics({ gravityScale: v })} step={0.1} /></PropRow>
+              <PropRow label="Grav. scale"><NumInput value={obj.physics.gravityScale} onChange={v => updatePhysics({ gravityScale: v })} step={0.1} /></PropRow>
+              <Toggle label="Sensor" value={obj.physics.isSensor} onChange={v => updatePhysics({ isSensor: v })} />
             </>
           )}
         </Section>
