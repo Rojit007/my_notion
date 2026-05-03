@@ -1,13 +1,10 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  // Phaser uses browser globals — don't attempt to bundle it server-side
-  webpack(config, { isServer }) {
-    if (isServer) {
-      config.externals = [...(config.externals ?? []), 'phaser'];
-    }
-    return config;
-  },
+  // Phaser uses browser globals — exclude from server bundling (Next.js 16 / Turbopack)
+  serverExternalPackages: ['phaser'],
+  // Silence the Turbopack + empty webpack config warning
+  turbopack: {},
   // Allow serving uploaded assets from /public/uploads
   async headers() {
     return [
