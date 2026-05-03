@@ -21,46 +21,56 @@ export function PublishModal({ projectId, projectName, onClose }: PublishModalPr
   const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const [buildMessage, setBuildMessage] = useState('Preparing build…');
   const startBuild = trpc.publish.startBuild.useMutation();
-  const { data: jobStatus } = trpc.publish.getStatus.useQuery(
-    { jobId: jobId! },
-    { enabled: !!jobId && stage === 'building', refetchInterval: 1500 },
-  );
-
-  // Watch job status
-  useEffect(() => {
-    if (!jobStatus) return;
-    setProgress(jobStatus.progress);
-    if (jobStatus.status === 'done') {
-      setPublishedUrl(jobStatus.outputUrl ?? null);
-      setStage('done');
-      toast.success('Published!', `${projectName} is now live.`);
-    } else if (jobStatus.status === 'failed') {
-      setErrorMsg(jobStatus.error ?? 'Build failed');
-      setStage('error');
-      toast.error('Publish failed', jobStatus.error ?? undefined);
-    }
-  }, [jobStatus, projectName]);
 
   const handlePublish = useCallback(async () => {
     setStage('building');
     setProgress(0);
     setErrorMsg(null);
+    setBuildMessage('Starting build…');
+
+    let result: { jobId: string };
     try {
-      const result = await startBuild.mutateAsync({ projectId });
-      setJobId(result.jobId);
-      // Simulate progress while waiting for real status
-      let p = 0;
-      const interval = setInterval(() => {
-        p = Math.min(p + Math.random() * 8, 85);
-        setProgress(Math.round(p));
-        if (p >= 85) clearInterval(interval);
-      }, 400);
+      result = await startBuild.mutateAsync({ projectId });
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : 'Failed to start build');
       setStage('error');
+      return;
     }
-  }, [projectId, startBuild]);
+
+    setJobId(result.jobId);
+
+    // Connect to SSE stream for real-time progress
+    const es = new EventSource(`/api/publish/${result.jobId}/stream`);
+    es.onmessage = e => {
+      try {
+        const data = JSON.parse(e.data as string) as {
+          type: string; progress?: number; message?: string; outputUrl?: string;
+        };
+        if (data.type === 'progress') {
+          setProgress(data.progress ?? 0);
+          setBuildMessage(data.message ?? '');
+        } else if (data.type === 'done') {
+          setProgress(100);
+          setPublishedUrl(data.outputUrl ?? null);
+          setStage('done');
+          toast.success('Published!', `${projectName} is now live.`);
+          es.close();
+        } else if (data.type === 'error') {
+          setErrorMsg(data.message ?? 'Build failed');
+          setStage('error');
+          toast.error('Publish failed', data.message);
+          es.close();
+        }
+      } catch { /* ignore parse errors */ }
+    };
+    es.onerror = () => {
+      setErrorMsg('Connection lost during build');
+      setStage('error');
+      es.close();
+    };
+  }, [projectId, projectName, startBuild]);
 
   return (
     <motion.div
@@ -158,7 +168,7 @@ export function PublishModal({ projectId, projectName, onClose }: PublishModalPr
                     />
                   </div>
                 </div>
-                <p className="text-xs" style={{ color: 'var(--color-text-t)' }}>Bundling assets and compiling scripts…</p>
+                <p className="text-xs" style={{ color: 'var(--color-text-t)' }}>{buildMessage}</p>
               </motion.div>
             )}
 

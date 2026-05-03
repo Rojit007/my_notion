@@ -24,8 +24,6 @@ export interface IRCondition {
   args: Record<string, unknown>;
 }
 
-class SerializeError extends Error {}
-
 // Walk downstream flow ports from a given block
 function walkFlowChain(
   startId: string,
@@ -57,14 +55,6 @@ function findCondition(
   return blocks[wire.fromBlockId] ?? null;
 }
 
-function serializeAction(block: ScriptBlock): IRInstruction {
-  return { op: block.type, args: { ...block.params } };
-}
-
-function serializeCondition(block: ScriptBlock): IRCondition {
-  return { op: block.type, args: { ...block.params } };
-}
-
 export function serializeScript(graph: ScriptGraph): IRScript {
   const { blocks, wires } = graph;
   const eventBlocks = Object.values(blocks).filter(b => b.category === 'event');
@@ -77,10 +67,12 @@ export function serializeScript(graph: ScriptGraph): IRScript {
     events.push({
       trigger: eventBlock.type,
       triggerArgs: { ...eventBlock.params },
-      condition: conditionBlock ? serializeCondition(conditionBlock) : null,
+      condition: conditionBlock
+        ? { op: conditionBlock.type, args: { ...conditionBlock.params } }
+        : null,
       actions: actionChain
         .filter(b => b.category === 'action')
-        .map(serializeAction),
+        .map(b => ({ op: b.type, args: { ...b.params } })),
     });
   }
 
@@ -88,7 +80,7 @@ export function serializeScript(graph: ScriptGraph): IRScript {
 }
 
 // Compile script graph into a self-contained JS module string
-// The generated code is eval-safe: it uses a sandboxed API object
+// The generated code uses a sandboxed API object — no eval() of user strings
 export function compileScriptToJS(graph: ScriptGraph): string {
   const ir = serializeScript(graph);
   if (ir.events.length === 0) return '';
@@ -99,8 +91,7 @@ export function compileScriptToJS(graph: ScriptGraph): string {
   ];
 
   for (const event of ir.events) {
-    const triggerCall = buildTriggerRegistration(event);
-    lines.push(`  ${triggerCall}`);
+    lines.push(`  ${buildTriggerRegistration(event)}`);
   }
 
   lines.push(`})`);
@@ -121,6 +112,10 @@ function buildTriggerRegistration(event: IREvent): string {
       return `api.onKeyRelease(${JSON.stringify(event.triggerArgs.key)}, function() { ${body} });`;
     case 'event_on_collision':
       return `api.onCollision(${JSON.stringify(event.triggerArgs.tag)}, function() { ${body} });`;
+    case 'event_on_pointer_down':
+      return `api.onPointerDown(function() { ${body} });`;
+    case 'event_on_timer':
+      return `api.onTimer(${Number(event.triggerArgs.delay)}, ${!!event.triggerArgs.loop}, function() { ${body} });`;
     default:
       return `/* unknown trigger: ${event.trigger} */`;
   }
@@ -146,10 +141,16 @@ function buildEventBody(event: IREvent): string {
 
 function buildConditionExpr(cond: IRCondition): string {
   switch (cond.op) {
-    case 'condition_check_variable':
-      return `api.getVar(${JSON.stringify(cond.args.variable)}) ${cond.args.operator} ${JSON.stringify(cond.args.value)}`;
-    case 'condition_check_key':
+    case 'cond_if_variable':
+      return `api.getVar(${JSON.stringify(cond.args.varName)}) ${cond.args.operator} ${JSON.stringify(cond.args.value)}`;
+    case 'cond_if_key_held':
       return `api.isKeyDown(${JSON.stringify(cond.args.key)})`;
+    case 'cond_if_health':
+      return `api.getHealth() ${cond.args.operator} ${Number(cond.args.value)}`;
+    case 'cond_if_score':
+      return `api.getScore() ${cond.args.operator} ${Number(cond.args.value)}`;
+    case 'cond_if_object_active':
+      return `api.isActive(${JSON.stringify(cond.args.target)})`;
     default:
       return 'true';
   }
@@ -157,30 +158,43 @@ function buildConditionExpr(cond: IRCondition): string {
 
 function buildActionStmt(action: IRInstruction): string {
   switch (action.op) {
-    case 'action_move_object':
-      return `api.move(${JSON.stringify(action.args.target)}, ${Number(action.args.x)}, ${Number(action.args.y)});`;
-    case 'action_set_velocity':
-      return `api.setVelocity(${JSON.stringify(action.args.target)}, ${Number(action.args.x)}, ${Number(action.args.y)});`;
+    case 'action_move':
+      return `api.setVelocity(${Number(action.args.velocityX)}, ${Number(action.args.velocityY)});`;
     case 'action_jump':
-      return `api.jump(${JSON.stringify(action.args.target)}, ${Number(action.args.force)});`;
-    case 'action_play_sound':
-      return `api.playSound(${JSON.stringify(action.args.asset)});`;
-    case 'action_stop_sound':
-      return `api.stopSound(${JSON.stringify(action.args.asset)});`;
+      return `api.jump(${Number(action.args.force)});`;
+    case 'action_set_velocity':
+      return `api.setVelocity(${Number(action.args.velocityX)}, ${Number(action.args.velocityY)});`;
+    case 'action_apply_force':
+      return `api.applyForce(${Number(action.args.forceX)}, ${Number(action.args.forceY)});`;
+    case 'action_set_position':
+      return `api.setPosition(${Number(action.args.x)}, ${Number(action.args.y)});`;
     case 'action_set_variable':
-      return `api.setVar(${JSON.stringify(action.args.variable)}, ${JSON.stringify(action.args.value)});`;
+      return `api.setVar(${JSON.stringify(action.args.varName)}, ${JSON.stringify(action.args.value)});`;
+    case 'action_add_variable':
+      return `api.addVar(${JSON.stringify(action.args.varName)}, ${Number(action.args.amount)});`;
+    case 'action_play_animation':
+      return `api.playAnim(${JSON.stringify(action.args.animKey)});`;
+    case 'action_stop_animation':
+      return `api.stopAnim();`;
+    case 'action_play_sound':
+      return `api.playSound(${JSON.stringify(action.args.soundKey)}, ${Number(action.args.volume ?? 1)});`;
+    case 'action_stop_sound':
+      return `api.stopSound(${JSON.stringify(action.args.soundKey)});`;
     case 'action_change_scene':
-      return `api.changeScene(${JSON.stringify(action.args.scene)});`;
-    case 'action_spawn_object':
+      return `api.changeScene(${JSON.stringify(action.args.targetScene)});`;
+    case 'action_create_object':
       return `api.spawn(${JSON.stringify(action.args.template)}, ${Number(action.args.x)}, ${Number(action.args.y)});`;
-    case 'action_destroy_object':
-      return `api.destroy(${JSON.stringify(action.args.target)});`;
-    case 'action_show_message':
-      return `api.showMessage(${JSON.stringify(action.args.text)});`;
+    case 'action_destroy_self':
+      return `api.destroySelf();`;
+    case 'action_set_active':
+      return `api.setActive(${JSON.stringify(action.args.target)}, ${!!action.args.active});`;
+    case 'action_set_visible':
+      return `api.setVisible(${JSON.stringify(action.args.target)}, ${!!action.args.visible});`;
+    case 'action_emit_event':
+      return `api.emit(${JSON.stringify(action.args.eventName)});`;
+    case 'action_wait':
+      return `api.wait(${Number(action.args.duration)});`;
     default:
       return `/* unknown action: ${action.op} */`;
   }
 }
-
-// Suppress unused import error in strict mode
-void SerializeError;
